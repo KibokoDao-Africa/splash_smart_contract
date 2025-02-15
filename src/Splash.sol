@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
+
 pragma solidity ^0.8.13;
 
 interface ISplash {
@@ -50,10 +51,6 @@ interface ISplash {
 
     function enroll(EnrollRequest memory request) external returns (uint256);
 
-    // function multiEnroll(
-    //     EnrollRequest[] memory requests
-    // ) external returns (uint256[] memory);
-
     function updateEnrollment(
         uint256 enrollmentId,
         uint256 completedAt
@@ -80,7 +77,6 @@ contract Splash is ISplash {
     mapping(uint256 => Course) public courses;
     mapping(uint256 => Enrollment) public enrollments;
     mapping(uint256 => Pool) public pools;
-    // mapping(enrollmentId => mapping(address => uint256)) public stakes;
     mapping(uint256 => mapping(address => uint256)) public stakes;
 
     constructor() {
@@ -117,8 +113,8 @@ contract Splash is ISplash {
     }
 
     function deleteCourse(uint256 _courseId) external override onlyAdmin {
-        require(courses[courseId].creator == msg.sender, "Splash: not creator");
-        delete courses[courseId];
+        require(courses[_courseId].creator == msg.sender, "Splash: not creator");
+        delete courses[_courseId];
     }
 
     function enroll(
@@ -136,21 +132,11 @@ contract Splash is ISplash {
         );
     }
 
-    // function multiEnroll(
-    //     EnrollRequest[] memory requests
-    // ) external override returns (uint256[] memory) {
-    //     uint256[] memory enrollmentIds = new uint256[](requests.length);
-    //     for (uint256 i = 0; i < requests.length; i++) {
-    //         enrollmentIds[i] = enroll(requests[i]);
-    //     }
-    //     return enrollmentIds;
-    // }
-
     function updateEnrollment(
         uint256 id,
         uint256 completedAt
     ) external override onlyAdmin {
-        enrollments[enrollmentId].completedAt = completedAt;
+        enrollments[id].completedAt = completedAt;
     }
 
     function enrollers(
@@ -191,25 +177,32 @@ contract Splash is ISplash {
 
         Pool storage pool = pools[_enrollmentId];
 
-        // TODO:  keep track of stakes
-        // TODO: tansfer amount to contract
+        stakes[_enrollmentId][msg.sender] += amount;
 
         if (agree) {
-            pool.against += amount;
-        } else {
             pool.support += amount;
+        } else {
+            pool.against += amount;
         }
     }
 
     function disburse(uint256 _enrollmentId) external override {
         Pool storage pool = pools[_enrollmentId];
         require(!pool.disbursed, "Splash: already disbursed");
+        require(enrollments[_enrollmentId].completedAt > 0, "Splash: not completed");
 
-        pool.disbursed = true;
+        uint256 totalPool = pool.support + pool.against;
+        uint256 fee = (totalPool * 10) / 100;
+        uint256 rewardPool = totalPool - fee;
 
-        // TODO: calculate rewards based on staked amount per user
-        // TODO: transfer rewards to winners
+        for (uint256 i = 0; i < enrollmentId; i++) {
+            address staker = enrollments[i].student;
+            uint256 stakedAmount = stakes[_enrollmentId][staker];
+            uint256 reward = (stakedAmount * rewardPool) / totalPool;
+            payable(staker).transfer(reward);
+        }
 
         pool.disbursed = true;
     }
 }
+
